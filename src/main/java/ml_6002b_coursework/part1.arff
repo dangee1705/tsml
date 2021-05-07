@@ -1,0 +1,20 @@
+@RELATION part1
+
+@ATTRIBUTE headache {no, yes}
+@ATTRIBUTE spots {no, yes}
+@ATTRIBUTE stiffneck {no, yes}
+@ATTRIBUTE diagnosis {negative, positive}
+
+@DATA
+yes, yes, yes, positive
+no, yes, yes, positive
+no, yes, no, positive
+yes, no, yes, positive
+no, yes, yes, positive
+yes, no, yes, positive
+no, yes, no, negative
+no, no, yes, negative
+no, yes, no, negative
+yes, no, yes, negative
+yes, no, no, negative
+no, no, no, negative
