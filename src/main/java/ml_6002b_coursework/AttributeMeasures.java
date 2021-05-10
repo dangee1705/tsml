@@ -1,45 +1,6 @@
 package ml_6002b_coursework;
 
-import java.util.Arrays;
-
-/**
- * Empty class for PArt 2.1 of the coursework
- *
- */
 public class AttributeMeasures {
-	
-
-	// public static double entropy(int[] x, int c) {
-	// 	double total = 0;
-	// 	for(int i = 0; i < c; i++) {
-	// 		int count = 0;
-	// 		for(int j = 0; j < x.length; j++)
-	// 			if(x[j] == i)
-	// 				count++;
-	// 		double p = (double) count / x.length;
-	// 		total += nlogn(p);
-	// 	}
-	// 	return -total;
-	// }
-
-	
-
-	
-
-	public static double measureGini(int[][] attributes) {
-		return 0;
-	}
-
-	public static double measureChiSquared(int[][] attributes) {
-		return 0;
-	}
-
-	public static double measureChiSquaredYates(int[][] attributes) {
-		return 0;
-	}
-
-	// --- start of measureInformationGain ---
-
 	public static int[] getColumn(int[][] array, int n) {
 		int[] column = new int[array.length];
 		for(int i = 0; i < array.length; i++)
@@ -55,27 +16,6 @@ public class AttributeMeasures {
 		return max + 1;
 	}
 
-	/*
-
-	converts
-
-	  A B T
-	0
-	1
-	2
-	3
-	4
-
-	into
-
-       T0 T1 ... TN
-	A0
-	A1
-	B0
-	B1
-	B2
-
-	*/
 	public static int[][] makeContingencyTable(int[][] data) {
 		int rows = data.length;
 		int cols = data[0].length;
@@ -135,33 +75,82 @@ public class AttributeMeasures {
 		return total;
 	}
 
-	// --- end of measureInformationGain ---
+	public static double measureGini(int[][] contingencyTable) {
+		double gini = 1;
+		int cases = sumRows(contingencyTable);
+		for(int i = 0; i < contingencyTable[0].length; i++) {
+			double p = (double) sumRow(getColumn(contingencyTable, i)) / cases;
+			gini -= p * p;
+		}
+		return gini;
+	}
+
+	public static double measureChiSquared(int[][] contingencyTable) {
+		int total = sumRows(contingencyTable);
+
+		int[] rowTotals = new int[contingencyTable.length];
+		for(int i = 0; i < contingencyTable.length; i++)
+			rowTotals[i] = sumRow(contingencyTable[i]);
+		int[] columnTotals = new int[contingencyTable[0].length];
+		for(int i = 0; i < contingencyTable[0].length; i++)
+			columnTotals[i] = sumRow(getColumn(contingencyTable, i));
+		
+		double chiSquared = 0;
+		for(int i = 0; i < contingencyTable.length; i++) {
+			for(int j = 0; j < contingencyTable[0].length; j++) {
+				double observed = contingencyTable[i][j];
+				double expected = rowTotals[i] * ((double) columnTotals[j] / total);
+				double diff = observed - expected;
+				chiSquared += (diff * diff) / expected;
+			}
+		}
+		return chiSquared;
+	}
+
+	public static double measureChiSquaredYates(int[][] contingencyTable) {
+		int total = sumRows(contingencyTable);
+
+		int[] rowTotals = new int[contingencyTable.length];
+		for(int i = 0; i < contingencyTable.length; i++)
+			rowTotals[i] = sumRow(contingencyTable[i]);
+		int[] columnTotals = new int[contingencyTable[0].length];
+		for(int i = 0; i < contingencyTable[0].length; i++)
+			columnTotals[i] = sumRow(getColumn(contingencyTable, i));
+		
+		double chiSquaredYates = 0;
+		for(int i = 0; i < contingencyTable.length; i++) {
+			for(int j = 0; j < contingencyTable[0].length; j++) {
+				double observed = contingencyTable[i][j];
+				double expected = rowTotals[i] * ((double) columnTotals[j] / total);
+				double diff = Math.abs(observed - expected) - 0.5;
+				chiSquaredYates += (diff * diff) / expected;
+			}
+		}
+		return chiSquaredYates;
+	}
+
 
 	public static void main(String[] args) {
-		int[][] data = {
-			// Outlook, Temp, Humidity, Windy, Play Golf
-			{0, 1, 1, 0, 0},
-			{0, 1, 1, 1, 0},
-			{1, 1, 1, 0, 1},
-			{2, 0, 1, 0, 1},
-			{2, 0, 1, 0, 1},
-			{2, 0, 0, 1, 0},
-			{1, 0, 0, 1, 1},
-			{0, 0, 1, 0, 0},
-			{0, 0, 0, 0, 1},
-			{2, 0, 1, 0, 1},
-			{0, 0, 0, 1, 1},
-			{1, 0, 1, 1, 1},
-			{1, 1, 0, 0, 1},
-			{2, 0, 1, 1, 0}
+		int[][] meningitis = {
+			{1, 1, 1, 1},
+			{0, 1, 1, 1},
+			{0, 1, 0, 1},
+			{1, 0, 1, 1},
+			{0, 1, 1, 1},
+			{1, 0, 1, 1},
+			{0, 1, 0, 0},
+			{0, 0, 1, 0},
+			{0, 1, 0, 0},
+			{1, 0, 1, 0},
+			{1, 0, 0, 0},
+			{0, 0, 0, 0}
 		};
-	
-		int[][] contingencyTable = makeContingencyTable(data);
-		System.out.println(Arrays.deepToString(contingencyTable));
+		int[][] meningitisContingencyTable = makeContingencyTable(meningitis);
+		int headache[][] = {meningitisContingencyTable[0], meningitisContingencyTable[1]};
 
-		int[][] outlook = {contingencyTable[0], contingencyTable[1], contingencyTable[2]};
-		System.out.println(Arrays.deepToString(outlook));
-
-		System.out.println(measureInformationGain(outlook));
+		System.out.println("measure information gain for headache splitting diagnosis = " + measureInformationGain(headache));
+		System.out.println("measure gini for headache splitting diagnosis = " + measureGini(headache));
+		System.out.println("measure chi squared for headache splitting diagnosis = " + measureChiSquared(headache));
+		System.out.println("measure chi squared yates for headache splitting diagnosis = " + measureChiSquaredYates(headache));
 	}
 }
