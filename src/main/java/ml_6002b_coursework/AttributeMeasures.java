@@ -1,5 +1,9 @@
 package ml_6002b_coursework;
 
+import weka.core.Attribute;
+import weka.core.Instance;
+import weka.core.Instances;
+
 public class AttributeMeasures {
 	public static int[] getColumn(int[][] array, int n) {
 		int[] column = new int[array.length];
@@ -14,6 +18,14 @@ public class AttributeMeasures {
 			if(column[i] > max)
 				max = column[i];
 		return max + 1;
+	}
+
+	public static int[][] makeContingencyTable(Instances instances) {
+		int[][] data = new int[instances.size()][instances.numAttributes()];
+		for(int i = 0; i < instances.size(); i++)
+			for(int j = 0; j < instances.numAttributes(); j++)
+				data[i][j] = (int) instances.get(i).value(instances.attribute(j));
+		return makeContingencyTable(data);
 	}
 
 	public static int[][] makeContingencyTable(int[][] data) {
@@ -40,6 +52,13 @@ public class AttributeMeasures {
 		return contingencyTable;
 	}
 
+	public static int[][] makeContingencyTable(Instances data, Attribute att) {
+		int[][] contingencyTable = new int[att.numValues()][data.classAttribute().numValues()];
+		for(Instance instance : data)
+			contingencyTable[(int) instance.value(att)][(int) instance.classValue()]++;
+		return contingencyTable;
+	}
+
 	public static int sumRow(int[] row) {
 		int total = 0;
 		for(int i = 0; i < row.length; i++)
@@ -63,13 +82,15 @@ public class AttributeMeasures {
 		int cols = contingencyTable[0].length;
 		int cases = sumRows(contingencyTable);
 		for(int i = 0; i < cols; i++)
-			total += nlogn((double) sumRow(getColumn(contingencyTable, i)) / cases);
+			total += nlogn(cases == 0 ? 0 : (double) sumRow(getColumn(contingencyTable, i)) / cases);
 		return -total;
 	}
 	
 	public static double measureInformationGain(int[][] contingencyTable) {
 		double total = entropy(contingencyTable);
 		int allCases = sumRows(contingencyTable);
+		if(allCases == 0)
+			return total;
 		for(int i = 0; i < contingencyTable.length; i++)
 			total -= ((double) sumRow(contingencyTable[i]) / allCases) * entropy(new int[][]{contingencyTable[i]});
 		return total;
@@ -79,7 +100,7 @@ public class AttributeMeasures {
 		double gini = 1;
 		int cases = sumRows(contingencyTable);
 		for(int i = 0; i < contingencyTable[0].length; i++) {
-			double p = (double) sumRow(getColumn(contingencyTable, i)) / cases;
+			double p = cases == 0 ? 0 : (double) sumRow(getColumn(contingencyTable, i)) / cases;
 			gini -= p * p;
 		}
 		return gini;
@@ -99,7 +120,7 @@ public class AttributeMeasures {
 		for(int i = 0; i < contingencyTable.length; i++) {
 			for(int j = 0; j < contingencyTable[0].length; j++) {
 				double observed = contingencyTable[i][j];
-				double expected = rowTotals[i] * ((double) columnTotals[j] / total);
+				double expected = total == 0 ? 0 : rowTotals[i] * ((double) columnTotals[j] / total);
 				double diff = observed - expected;
 				chiSquared += (diff * diff) / expected;
 			}

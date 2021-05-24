@@ -1,10 +1,11 @@
 package ml_6002b_coursework;
 
+import java.util.Enumeration;
+import java.util.Random;
+
 import weka.core.Attribute;
 import weka.core.Instance;
 import weka.core.Instances;
-
-import java.util.Enumeration;
 
 /**
  * Interface for alternative attribute split measures for Part 2.2 of the coursework
@@ -13,6 +14,7 @@ import java.util.Enumeration;
 public interface AttributeSplitMeasure {
 
     double computeAttributeQuality(Instances data, Attribute att) throws Exception;
+    double computeAttributeQuality(int[][] contingencyTable);
 
     /**
      * Splits a dataset according to the values of a nominal attribute.
@@ -21,7 +23,7 @@ public interface AttributeSplitMeasure {
      * @param att the attribute to be used for splitting
      * @return the sets of instances produced by the split
      */
-     default Instances[] splitData(Instances data, Attribute att) {
+    default Instances[] splitData(Instances data, Attribute att) {
         Instances[] splitData = new Instances[att.numValues()];
         for (int j = 0; j < att.numValues(); j++) {
             splitData[j] = new Instances(data, data.numInstances());
@@ -36,5 +38,28 @@ public interface AttributeSplitMeasure {
         }
         return splitData;
     }
+
+    default Instances[] splitDataOnNumeric(Instances data, Attribute att) {
+        double min = att.getLowerNumericBound();
+        double max = att.getUpperNumericBound();
+        Random random = new Random();
+        double splitNum = min + random.nextDouble() * (max - min);
+
+        Instances[] splitData = {
+            new Instances(data, data.numInstances()),
+            new Instances(data, data.numInstances())
+        };
+        Enumeration<Instance> instEnum = data.enumerateInstances();
+        while (instEnum.hasMoreElements()) {
+            Instance inst = (Instance) instEnum.nextElement();
+            splitData[inst.value(att) < splitNum ? 0 : 1].add(inst);
+        }
+        for (int i = 0; i < splitData.length; i++)
+            splitData[i].compactify();
+        return splitData;
+    }
+
+    
+    
 
 }

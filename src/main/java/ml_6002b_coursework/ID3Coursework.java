@@ -22,14 +22,26 @@
 
 package ml_6002b_coursework;
 
+import java.io.FileReader;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Random;
+
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Sourcable;
-import weka.core.*;
+import weka.core.Attribute;
+import weka.core.Capabilities;
 import weka.core.Capabilities.Capability;
+import weka.core.Instance;
+import weka.core.Instances;
+import weka.core.NoSupportForMissingValuesException;
+import weka.core.RevisionUtils;
+import weka.core.TechnicalInformation;
 import weka.core.TechnicalInformation.Field;
 import weka.core.TechnicalInformation.Type;
-
-import java.util.Enumeration;
+import weka.core.TechnicalInformationHandler;
+import weka.core.Utils;
 
 /**
 
@@ -140,6 +152,7 @@ public class ID3Coursework
 
     // attributes
     result.enable(Capability.NOMINAL_ATTRIBUTES);
+    result.enable(Capability.NUMERIC_ATTRIBUTES);
 
     // class
     result.enable(Capability.NOMINAL_CLASS);
@@ -169,6 +182,33 @@ public class ID3Coursework
     makeTree(data);
   }
 
+  HashMap<Attribute, Double> splits = new HashMap<>();
+
+  private Instances[] splitDataOnNumeric(Instances data, Attribute att, double split) {
+    Instances[] splitData = {
+        new Instances(data, data.numInstances()),
+        new Instances(data, data.numInstances())
+    };
+    Enumeration<Instance> instEnum = data.enumerateInstances();
+    while (instEnum.hasMoreElements()) {
+        Instance inst = (Instance) instEnum.nextElement();
+        splitData[inst.value(att) < split ? 0 : 1].add(inst);
+    }
+    for (int i = 0; i < splitData.length; i++)
+        splitData[i].compactify();
+    return splitData;
+}
+
+private int[][] makeContingencyTable(Instances[] bins) {
+    int[][] contingencyTable = new int[bins.length][bins[0].classAttribute().numValues()];
+    for(int i = 0; i < bins.length; i++) {
+        for(Instance instance : bins[i]) {
+            contingencyTable[i][(int) instance.classValue()]++;
+        }
+    }
+    return contingencyTable;
+}
+
   /**
    * Method for building an Id3 tree.
    *
@@ -190,7 +230,27 @@ public class ID3Coursework
     Enumeration attEnum = data.enumerateAttributes();
     while (attEnum.hasMoreElements()) {
       Attribute att = (Attribute) attEnum.nextElement();
-      infoGains[att.index()] = attSplit.computeAttributeQuality(data, att);
+
+      if(att.isNumeric()) {
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
+        for(Instance instance : data) {
+          double value = instance.value(att);
+          if(value < min)
+            min = value;
+          if(value > max)
+            max = value;
+        }
+        Random random = new Random();
+        double split = min + random.nextDouble() * (max - min);
+        splits.put(att, split);
+
+        Instances[] bins = splitDataOnNumeric(data, att, split);
+        int[][] contingencyTable = makeContingencyTable(bins);
+        infoGains[att.index()] = attSplit.computeAttributeQuality(contingencyTable);
+      } else {
+        infoGains[att.index()] = attSplit.computeAttributeQuality(data, att);
+      }
     }
     m_Attribute = data.attribute(Utils.maxIndex(infoGains));
     
@@ -208,11 +268,20 @@ public class ID3Coursework
       m_ClassValue = Utils.maxIndex(m_Distribution);
       m_ClassAttribute = data.classAttribute();
     } else {
-      Instances[] splitData = attSplit.splitData(data, m_Attribute);
-      m_Successors = new ID3Coursework[m_Attribute.numValues()];
-      for (int j = 0; j < m_Attribute.numValues(); j++) {
-        m_Successors[j] = new ID3Coursework();
-        m_Successors[j].makeTree(splitData[j]);
+      if(m_Attribute.isNumeric()) {
+        Instances[] splitData = splitDataOnNumeric(data, m_Attribute, splits.get(m_Attribute));
+        m_Successors = new ID3Coursework[2];
+        for (int j = 0; j < 2; j++) {
+          m_Successors[j] = new ID3Coursework();
+          m_Successors[j].makeTree(splitData[j]);
+        }
+      } else {
+        Instances[] splitData = attSplit.splitData(data, m_Attribute);
+        m_Successors = new ID3Coursework[m_Attribute.numValues()];
+        for (int j = 0; j < m_Attribute.numValues(); j++) {
+          m_Successors[j] = new ID3Coursework();
+          m_Successors[j].makeTree(splitData[j]);
+        }
       }
     }
   }
@@ -234,8 +303,10 @@ public class ID3Coursework
     if (m_Attribute == null) {
       return m_ClassValue;
     } else {
-      return m_Successors[(int) instance.value(m_Attribute)].
-        classifyInstance(instance);
+      if(m_Attribute.isNumeric())
+        return m_Successors[instance.value(m_Attribute) < splits.get(m_Attribute) ? 0 : 1].classifyInstance(instance);
+      else
+        return m_Successors[(int) instance.value(m_Attribute)].classifyInstance(instance);
     }
   }
 
@@ -256,8 +327,10 @@ public class ID3Coursework
     if (m_Attribute == null) {
       return m_Distribution;
     } else { 
-      return m_Successors[(int) instance.value(m_Attribute)].
-        distributionForInstance(instance);
+      if(m_Attribute.isNumeric())
+        return m_Successors[instance.value(m_Attribute) < splits.get(m_Attribute) ? 0 : 1].distributionForInstance(instance);
+      else
+        return m_Successors[(int) instance.value(m_Attribute)].distributionForInstance(instance);
     }
   }
 
@@ -424,8 +497,82 @@ public class ID3Coursework
    * Main method.
    *
    * @param args the options for the classifier
+   * @throws Exception
    */
-  public static void main(String[] args) {
-    runClassifier(new ID3Coursework(), args);
+  public static void main(String[] args) throws Exception {
+    // FileReader reader = new FileReader("./src/main/java/ml_6002b_coursework/test_data/Chinatown_TRAIN.arff");
+    // Instances instances = new Instances(reader);
+    // instances.setClassIndex(instances.numAttributes() - 1);
+
+    ID3Coursework id3Coursework = new ID3Coursework();
+    id3Coursework.setOptions(new String[]{"--ig"});
+    runClassifier(id3Coursework, new String[]{"-t", "./src/main/java/ml_6002b_coursework/test_data/Chinatown_TRAIN.arff", "-T", "./src/main/java/ml_6002b_coursework/test_data/Chinatown_TEST.arff"});
+
+    // ID3Coursework id3Coursework2 = new ID3Coursework();
+    // id3Coursework2.buildClassifier(instances);
+    // id3Coursework2.setOptions(new String[]{"--gini"});
+    // runClassifier(id3Coursework2, new String[]{"-t", "./src/main/java/ml_6002b_coursework/test_data/Chinatown_TEST.arff"});
+
+    // ID3Coursework id3Coursework3 = new ID3Coursework();
+    // id3Coursework3.buildClassifier(instances);
+    // id3Coursework3.setOptions(new String[]{"--chiSquared"});
+    // runClassifier(id3Coursework3, new String[]{"-t", "./src/main/java/ml_6002b_coursework/test_data/Chinatown_TEST.arff"});
+
+    // System.out.println("ID3 using measure on optdigits problem has test accuracy = ");
+
+    // Attribute splitAtt = n
+
+    // Random random = new Random();
+    // random.nextInt();
+
+    // IGAttributeSplitMeasure igAttributeSplitMeasure = new IGAttributeSplitMeasure();
+    // Instances[] split = AttributeSplitMeasure.splitDataOnNumeric(instances, instances.attribute(0));
+
+
+
+
+    // System.out.println(id3Coursework.classifyInstance(instances.get(2)));
+
+    // Attribute attribute = instances.attribute(2);
+
+    // Instances[] split = AttributeSplitMeasure.splitDataOnNumeric(instances, attribute);
+
+    // IGAttributeSplitMeasure igAttributeSplitMeasure = new IGAttributeSplitMeasure();
+    // GiniAttributeSplitMeasure giniAttributeSplitMeasure = new GiniAttributeSplitMeasure();
+    // ChiSquaredAttributeSplitMeasure chiSquaredAttributeSplitMeasure = new ChiSquaredAttributeSplitMeasure();
+
+    // GiniAttributeSplitMeasure giniAttributeSplitMeasure = new GiniAttributeSplitMeasure();
+    // for(int i = 0; i < instances.numAttributes() - 1; i++) {
+    //     Attribute attribute = instances.attribute(i);
+    //     System.out.println("measure gini for attribute " + attribute.name() + " splitting diagnosis = " + giniAttributeSplitMeasure.computeAttributeQuality(instances, attribute));
+    // }
+
+    // System.out.println("ID3 using measure <> of optdigits Problem has test accuracy = <>");
+    // System.out.println(igAttributeSplitMeasure.computeAttributeQuality(instances, attribute));
+    // System.out.println(giniAttributeSplitMeasure.computeAttributeQuality(instances, attribute));
+    // System.out.println(chiSquaredAttributeSplitMeasure.computeAttributeQuality(instances, attribute));
+    
+    // reader.close();
+}
+
+  @Override
+  public void setOptions(String[] options) throws Exception {
+    super.setOptions(options);
+
+    for(String option : options) {
+      if(option.equals("--ig")) {
+        this.attSplit = new IGAttributeSplitMeasure();
+      } else if(option.equals("--gini")) {
+        this.attSplit = new GiniAttributeSplitMeasure();
+      } else if(option.equals("--chiSquared")) {
+        ChiSquaredAttributeSplitMeasure chiSquaredAttribyteSplitMeasure = new ChiSquaredAttributeSplitMeasure();
+        chiSquaredAttribyteSplitMeasure.useYates(false);
+        this.attSplit = chiSquaredAttribyteSplitMeasure;
+      } else if(option.equals("--chiSquaredYates")) {
+        ChiSquaredAttributeSplitMeasure chiSquaredAttribyteSplitMeasure = new ChiSquaredAttributeSplitMeasure();
+        chiSquaredAttribyteSplitMeasure.useYates(true);
+        this.attSplit = chiSquaredAttribyteSplitMeasure;
+      }
+    }
   }
 }

@@ -56,6 +56,7 @@ import machine_learning.classifiers.ensembles.CAWPE;
 import machine_learning.classifiers.PLSNominalClassifier;
 import machine_learning.classifiers.kNN;
 import machine_learning.classifiers.tuned.TunedXGBoost;
+import ml_6002b_coursework.ID3Coursework;
 import weka.classifiers.Classifier;
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.NaiveBayes;
@@ -65,6 +66,7 @@ import weka.classifiers.functions.SMO;
 import weka.classifiers.functions.supportVector.PolyKernel;
 import weka.classifiers.functions.supportVector.RBFKernel;
 import weka.classifiers.meta.RotationForest;
+import weka.classifiers.trees.Id3;
 import weka.classifiers.trees.J48;
 import weka.classifiers.trees.RandomForest;
 
